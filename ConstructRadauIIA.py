@@ -25,7 +25,6 @@ def generateRadauIIA(s, dps, mindps, printout=False):
     zero = mp.mpf(0)
     matrixC = []
     for i in range(s):
-        rowR = C[i]
         zeroR = [zero] * s
         for j in range(s):
             matrixC.append(zeroR * j + C[i] + zeroR * (s-1-j))
