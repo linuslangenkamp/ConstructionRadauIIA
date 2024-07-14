@@ -45,6 +45,12 @@ def generateRadauIIA(s, dps, mindps, printout=False):
 
     # calculate inverse of A
     A_inv = inverse(A)
+
+    invRowSum = []
+    for i in range(s):
+        S = sum(A_inv[i, j] for j in range(s))
+        invRowSum.append(S)
+
     mp.dps = mindps
     if printout:
         # print scheme
@@ -61,11 +67,11 @@ def generateRadauIIA(s, dps, mindps, printout=False):
         for i in range(s):
             for j in range(s):
                 print("inv(A)[%s, %s] = %s" % (i + 1, j + 1, A_inv[i, j]))
-    return A, A_inv, C[1]
+    return A, A_inv, C[1], invRowSum
 
 
 def genCppCode(s, dps, mindps):
-    A, A_inv, c = generateRadauIIA(s, dps, mindps)
+    A, A_inv, c, invRowSum = generateRadauIIA(s, dps, mindps)
     mp.dps = mindps
     outStr = "{"
     outStr += "{"
@@ -87,6 +93,11 @@ def genCppCode(s, dps, mindps):
         for j in range(s):
             outStr += str(A_inv[i, j]) + ",\n"
         outStr = outStr[:-2] + "},\n"
+    outStr = outStr[:-2] + "},\n"
+
+    outStr += "{"
+    for i in range(s):
+        outStr += str(invRowSum[i]) + ",\n"
     outStr = outStr[:-2] + "},\n"
 
     outStr += str(s)
