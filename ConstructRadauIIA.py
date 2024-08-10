@@ -1,5 +1,5 @@
 from mpmath import *
-from sympy import symbols, diff, expand, Poly
+from sympy import symbols, diff, expand, Poly, solve, N, re, im
 
 def generateRadauIIA(s, dps, mindps, printout=False):
     """
@@ -12,10 +12,27 @@ def generateRadauIIA(s, dps, mindps, printout=False):
     function = x**(s-1) * (x-1)**s
     der = expand(diff(function, x, s-1))
     pDer = Poly(der, x)
+    roots = solve(pDer, x)
     coefficients = [int(pDer.coeff_monomial(x**(s-k))) for k in range(s+1)]
 
+    allRoots = []
+    for r in roots:
+        rDps = N(r, dps)
+        if rDps.is_real:
+            allRoots.append(rDps)
+        elif abs(im(rDps)) <= 1e-150:
+            allRoots.append(re(rDps))
+        else:
+            rDps = N(r, 5*dps)
+            allRoots.append(re(rDps))
+            print("IMAG: %s" % im(rDps))
+
+    allRoots.sort()
+    allRoots = [mpf(r) for r in allRoots]
+
     # calculate weights
-    C = [[mp.mpf(1)] * s, polyroots(coefficients)]
+    C = [[mp.mpf(1)] * s, allRoots]
+
     rhs = [C[1]]
     for k in range(2, s+1):
         C.append([C[1][j]**k for j in range(s)])
@@ -73,7 +90,9 @@ def generateRadauIIA(s, dps, mindps, printout=False):
 def genCppCode(s, dps, mindps):
     A, A_inv, c, invRowSum = generateRadauIIA(s, dps, mindps)
     mp.dps = mindps
-    outStr = "{"
+    outStr = f"""case IntegratorSteps::Steps{s}:
+            return """
+    outStr += "{"
     outStr += "{"
     for i in range(s):
         outStr += str(c[i]) + ",\n"
@@ -106,7 +125,6 @@ def genCppCode(s, dps, mindps):
     print(outStr)
     return True
 
-for s in range(1, 8):
-    print("Schema: %s" % s)
+for s in range(1, 22):
     genCppCode(s, 150, 53)
     print("")
