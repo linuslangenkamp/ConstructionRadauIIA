@@ -13,7 +13,6 @@ def generateRadauIIA(s, dps, mindps, printout=False):
     der = expand(diff(function, x, s-1))
     pDer = Poly(der, x)
     roots = solve(pDer, x)
-    coefficients = [int(pDer.coeff_monomial(x**(s-k))) for k in range(s+1)]
 
     allRoots = []
     for r in roots:
@@ -125,6 +124,6 @@ def genCppCode(s, dps, mindps):
     print(outStr)
     return True
 
-for s in range(1, 22):
+for s in range(1, 37):
     genCppCode(s, 150, 53)
     print("")
