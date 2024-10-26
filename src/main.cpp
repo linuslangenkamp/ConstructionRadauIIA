@@ -3,6 +3,6 @@
 
 int main() {
     std::cout << "Hi" << std::endl;
-    auto int78 = Integrator::radauIIA(IntegratorSteps::Steps78);
+    auto integr = Integrator::radauIIA(IntegratorSteps::Steps1);
     return 0;
 }
