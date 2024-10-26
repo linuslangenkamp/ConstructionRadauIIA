@@ -8,19 +8,20 @@ def genCppCode(s, dps=150, mindps=53):
     outStr = f"""case IntegratorSteps::Steps{s}:
             return """
     outStr += "{"
+
+    # c vector
     outStr += "{"
     for i in range(s):
         outStr += str(c[i]) + ",\n"
     outStr = outStr[:-2] +"},\n"
 
+    # b vector
     outStr += "{"
     for i in range(s):
-        outStr += "{"
-        for j in range(s):
-            outStr += str(A[i][j]) + ",\n"
-        outStr = outStr[:-2] +"},\n"
-    outStr = outStr[:-2] + "},\n"
+        outStr += str(A[-1][i]) + ",\n"
+    outStr = outStr[:-2] +"},\n"
 
+    # ainv matrix
     outStr += "{"
     for i in range(s):
         outStr += "{"
@@ -29,11 +30,13 @@ def genCppCode(s, dps=150, mindps=53):
         outStr = outStr[:-2] + "},\n"
     outStr = outStr[:-2] + "},\n"
 
+    # row sum of ainv
     outStr += "{"
     for i in range(s):
         outStr += str(invRowSum[i]) + ",\n"
     outStr = outStr[:-2] + "},\n"
 
+    # step count
     outStr += str(s)
 
     outStr += "};"
@@ -98,8 +101,9 @@ def generateFromIntegral(s, dps=150):
 
 import time
 
-for m in range(78, 500):
-    with open("radau78.txt", "a") as f:
+for m in range(2, 37):
+    with open("radau1_37.txt", "w") as f:
         startTime = time.time()
-        f.write(genCppCode(m))
-        print(f"{m} {time.time() - startTime}")
+        #f.write()
+        print(genCppCode(m))
+        #print(f"{m} {time.time() - startTime}")
