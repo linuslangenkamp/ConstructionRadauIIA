@@ -160,6 +160,7 @@ def generate(s, dps=150):
     LB0 = []
 
     # Barycentric Formulas from http://richard.baltensp.home.hefr.ch/Publications/3.pdf
+    # Note D2 = D1 ** 2
 
     # eval d/dx L
     for i in range(s + 1):

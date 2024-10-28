@@ -7,6 +7,6 @@ int main() {
         auto integr = Integrator::radauIIA((IntegratorSteps)i);
         std::cout << integr.steps << std::endl;
     }
-    
+
     return 0;
 }

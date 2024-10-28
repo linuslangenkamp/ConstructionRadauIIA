@@ -117,9 +117,6 @@ public:
     // eval lagrange poly based on coefficients, values at some x; O(n^2)
     static double evalLagrange(std::vector<double>, std::vector<double>&, double);
 
-    // interpolation stuff, lagrange basis at c_j/2, c_j/2 + 1/2 for j=0...m
-    std::vector<std::vector<double>> interpolationFirstBasisPolynomial();  // inner basis poly, needed for 1st interval of u
-    std::vector<std::vector<double>> interpolationBasisPolynomial();       // standard collocation polynomial
     std::vector<double> interpolateFirstControl(std::vector<double>& uValues);
     std::vector<double> evalInterpolationNewNodes(std::vector<double>& values);
 
@@ -128,9 +125,6 @@ public:
     // all basis coefficients at all c_j for p_u, p_u', p_u''
     std::vector<double> evalLagrangeDiff(std::vector<double>&);
     std::vector<double> evalLagrangeDiff2(std::vector<double>&);
-
-    std::vector<std::vector<double>> basisPolynomialDiff();
-    std::vector<std::vector<double>> basisPolynomialDiff2();
 
     // interpolationFirstLagrangeBasis == LB -> lagrangeBisectedFactorsC
     // interpolationLagrangeBasis == LB0 -> lagrangeBisectionC0
