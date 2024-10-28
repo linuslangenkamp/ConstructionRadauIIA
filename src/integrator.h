@@ -91,15 +91,7 @@ enum class IntegratorSteps {
     Steps67 = 67,
     Steps68 = 68,
     Steps69 = 69,
-    Steps70 = 70,
-    Steps71 = 71,
-    Steps72 = 72,
-    Steps73 = 73,
-    Steps74 = 74,
-    Steps75 = 75,
-    Steps76 = 76,
-    Steps77 = 77,
-    Steps78 = 78
+    Steps70 = 70
 };
 
 class Integrator {
@@ -107,10 +99,17 @@ public:
     static Integrator radauIIA(IntegratorSteps steps);
     const std::vector<double> c;
     const std::vector<double> c0;  // c including 0 point, i.e. [0, c1, c2, ..., cm]
-    const std::vector<std::vector<double>> Ainv;
-    const std::vector<double> invRowSum;
+    const std::vector<double> cBisection;  // [c_i / 2 + 1/2 * k]
+    const std::vector<double> c0Bisection; // [0, c_i / 2 + 1/2 * k]
+
     const std::vector<double> b;
-    const std::vector<double> cBisection;  // [1/2 * j + 1/2 * c_i] for j=0, 1 and i = 1, ..., m
+
+    const std::vector<std::vector<double>> derMat;
+    const std::vector<std::vector<double>> derMat2;
+
+    const std::vector<std::vector<double>> lagrangeBisectedFactorsC;
+    const std::vector<std::vector<double>> lagrangeBisectionC0;
+
     const int steps;
 
     double integrate(std::vector<double>&);
@@ -123,8 +122,6 @@ public:
     std::vector<std::vector<double>> interpolationBasisPolynomial();       // standard collocation polynomial
     std::vector<double> interpolateFirstControl(std::vector<double>& uValues);
     std::vector<double> evalInterpolationNewNodes(std::vector<double>& values);
-    const std::vector<std::vector<double>> interpolationFirstLagrangeBasis;
-    const std::vector<std::vector<double>> interpolationLagrangeBasis;
 
     std::vector<double> evalLinearSplineNewNodes(std::vector<double>& values);
 
@@ -134,12 +131,19 @@ public:
 
     std::vector<std::vector<double>> basisPolynomialDiff();
     std::vector<std::vector<double>> basisPolynomialDiff2();
-    const std::vector<std::vector<double>> lagrangeBasisDiff;
-    const std::vector<std::vector<double>> lagrangeBasisDiff2;
+
+    // interpolationFirstLagrangeBasis == LB -> lagrangeBisectedFactorsC
+    // interpolationLagrangeBasis == LB0 -> lagrangeBisectionC0
+
+    //lagrangeBasisDiff -> derMat
+    //lagrangeBasisDiff2 -> derMat2
 
 private:
-    Integrator(const std::vector<double>& c, const std::vector<double>& b, const std::vector<std::vector<double>>& Ainv,
-               const std::vector<double>& invRowSum, int steps);
+    Integrator(const std::vector<double>& c, const std::vector<double>& c0,
+    const std::vector<double>& cBisection, const std::vector<double>& c0Bisection, const std::vector<double>& b, 
+    const std::vector<std::vector<double>>& derMat, const std::vector<std::vector<double>>& derMat2,
+    const std::vector<std::vector<double>>& lagrangeBisectedFactorsC, const std::vector<std::vector<double>>& lagrangeBisectionC0,
+    int steps);
 };
 
 #endif  // GDOPT_INTEGRATOR_H

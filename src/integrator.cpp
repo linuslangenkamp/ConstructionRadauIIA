@@ -30,34 +30,14 @@ a_{s,s} = 1/s^2 and ainv_{s,s} = 1/2 (1 + s^2) hold.
 // Outsource calculations if possible
 // Note: A^-1 = D = diff Lagrange, differentiation matrix
 
-Integrator::Integrator(const std::vector<double>& c, const std::vector<double>& b, const std::vector<std::vector<double>>& Ainv,
-                       const std::vector<double>& invRowSum, int steps)
-    : c(c),
-      Ainv(Ainv),
-      b(b),
-      invRowSum(invRowSum),
-      steps(steps),
-      c0([&c]() {
-          std::vector<double> temp(1, 0.0);
-          temp.insert(temp.end(), c.begin(), c.end());
-          return temp;
-      }()),
-      // TODO: outsource
-      cBisection([this]() {
-          std::vector<double> newGrid;
-          for (int k = 0; k < 2; k++) {
-              for (size_t idx = 0; idx < c0.size(); idx++) {
-                  if (k != 1 || idx != 0)
-                      newGrid.push_back(0.5 * (k + c0[idx]));
-              }
-          }
-          return newGrid;
-      }()),
-      interpolationFirstLagrangeBasis(interpolationFirstBasisPolynomial()),
-      interpolationLagrangeBasis(interpolationBasisPolynomial()),
-      lagrangeBasisDiff(basisPolynomialDiff()),
-      lagrangeBasisDiff2(basisPolynomialDiff2()) {
-}
+Integrator::Integrator(const std::vector<double>& c, const std::vector<double>& c0,
+    const std::vector<double>& cBisection, const std::vector<double>& c0Bisection, const std::vector<double>& b, 
+    const std::vector<std::vector<double>>& derMat, const std::vector<std::vector<double>>& derMat2,
+    const std::vector<std::vector<double>>& lagrangeBisectedFactorsC, const std::vector<std::vector<double>>& lagrangeBisectionC0, 
+    int steps) 
+    : c(c), c0(c0), cBisection(cBisection), c0Bisection(c0Bisection), b(b), derMat(derMat), derMat2(derMat2),
+    lagrangeBisectedFactorsC(lagrangeBisectedFactorsC), lagrangeBisectionC0(lagrangeBisectionC0), steps(steps)
+{}
 
 // First and second derivative of the Lagrange interpolating polynomial on the nominal interval [0, 1]
 // Will be used for detecting discontinuities, corners, sections that are steep or have a huge curvature
@@ -73,104 +53,27 @@ double Integrator::integrate(std::vector<double>& f) {
     return integral;
 }
 
-// TODO: outsource
-std::vector<std::vector<double>> Integrator::basisPolynomialDiff() {
-    // returns vector of the lagrange basis coeffs diff for all grid points 0, c_1, ...
-    // i.e. w_j(c_i) where c_i are the collocation points including 0
-    std::vector<std::vector<double>> lagr;
-    for (int i = 0; i < sz(c0); i++) {
-        std::vector<double> lagrC = {};
-        for (int j = 0; j < steps + 1; j++) {
-            double sum = 0;
-            for (int d = 0; d < sz(c0); d++) {
-                if (d != j) {
-                    double factor = 1;
-                    for (int m = 0; m < sz(c0); m++) {
-                        if (m != d && m != j) {
-                            factor *= (c0[i] - c0[m]);
-                        }
-                    }
-                    sum += factor;
-                }
-            }
-            double factor = 1;
-            for (int m = 0; m < sz(c0); m++) {
-                if (m != j) {
-                    factor *= (c0[j] - c0[m]);
-                }
-            }
-            sum /= factor;
-            lagrC.push_back(sum);
-        }
-        lagr.push_back(lagrC);
-    }
-    for (const auto& row : lagr) {
-        for (const auto& elem : row) {
-            std::cout << elem << " ";
-        }
-        std::cout << std::endl;  // Move to the next row
-    }
-    return lagr;
-}
 
 std::vector<double> Integrator::evalLagrangeDiff(std::vector<double>& coefficients) {
     // evaluates the diff of the lagrange polynomial of given coefficients at c0 = 0, c1, c2, ...
     std::vector<double> lagrangeDiff;
-    for (int i = 0; i < sz(lagrangeBasisDiff); i++) {
+    for (int i = 0; i < sz(derMat); i++) {
         double diffC = 0;
         for (int j = 0; j < sz(coefficients); j++) {
-            diffC += lagrangeBasisDiff[i][j] * coefficients[j];
+            diffC += derMat[i][j] * coefficients[j];
         }
         lagrangeDiff.push_back(diffC);
     }
     return lagrangeDiff;
 }
 
-// TODO: outsource
-std::vector<std::vector<double>> Integrator::basisPolynomialDiff2() {
-    // returns vector of the lagrange basis coeffs 2nd diff for all grid points 0, c_1, ...
-    // i.e. w_j(c_i) where c_i are the collocation points including 0
-    std::vector<std::vector<double>> lagr;
-    for (int i = 0; i < sz(c0); i++) {
-        std::vector<double> lagrC = {};
-        for (int j = 0; j < steps + 1; j++) {
-            double sum = 0;
-            for (int d = 0; d < steps + 1; d++) {
-                if (d != j) {
-                    for (int l = 0; l < steps + 1; l++) {
-                        if (l != j && l != d) {
-                            double factor = 1;
-                            for (int m = 0; m < steps + 1; m++) {
-                                if (m != j && m != d && m != l) {
-                                    factor *= (c0[i] - c0[m]);
-                                }
-                            }
-                            sum += factor;
-                        }
-                    }
-                }
-            }
-            double factor = 1;
-            for (int m = 0; m < steps + 1; m++) {
-                if (m != j) {
-                    factor *= (c0[j] - c0[m]);
-                }
-            }
-            sum /= factor;
-            lagrC.push_back(sum);
-        }
-        lagr.push_back(lagrC);
-    }
-    return lagr;
-}
-
 std::vector<double> Integrator::evalLagrangeDiff2(std::vector<double>& coefficients) {
     // evaluates the 2nd diff of the lagrange polynomial of given coefficients at c0 = 0, c1, c2, ...
     std::vector<double> lagrangeDiff;
-    for (int i = 0; i < sz(lagrangeBasisDiff2); i++) {
+    for (int i = 0; i < sz(derMat2); i++) {
         double diffC = 0;
         for (int j = 0; j < sz(coefficients); j++) {
-            diffC += lagrangeBasisDiff2[i][j] * coefficients[j];
+            diffC += derMat2[i][j] * coefficients[j];
         }
         lagrangeDiff.push_back(diffC);
     }
@@ -193,63 +96,10 @@ double Integrator::evalLagrange(std::vector<double> grid, std::vector<double>& f
     return val;
 }
 
-// Interpolation methods for bisection of an interval
-
-// use this for first control interval // TODO: outsource
-std::vector<std::vector<double>> Integrator::interpolationFirstBasisPolynomial() {
-    std::vector<double> newGrid;
-    for (int k = 0; k < 2; k++) {
-        for (int idx = 0; idx < sz(c); idx++) {
-            newGrid.push_back(0.5 * (k + c[idx]));
-        }
-    }
-
-    std::vector<std::vector<double>> lagr;
-    for (auto coll : newGrid) {
-        std::vector<double> lagrC = {};
-        for (int k = 0; k < steps; k++) {
-            double factor = 1;
-            for (int d = 0; d < steps; d++) {
-                if (d != k)
-                    factor *= (coll - c[d]) / (c[k] - c[d]);
-            }
-            lagrC.push_back(factor);
-        }
-        lagr.push_back(lagrC);
-    }
-    return lagr;
-}
-
-// use this for every interval, but the 0-th control interval // TODO: outsource
-std::vector<std::vector<double>> Integrator::interpolationBasisPolynomial() {
-    std::vector<double> newGrid;
-    for (int k = 0; k < 2; k++) {
-        for (int idx = 0; idx < sz(c0); idx++) {
-            if (k != 1 || idx != 0)
-                newGrid.push_back(0.5 * (k + c0[idx]));
-        }
-    }
-
-    std::vector<std::vector<double>> lagr;
-    for (auto coll : newGrid) {
-        std::vector<double> lagrC = {};
-        for (int k = 0; k < steps + 1; k++) {
-            double factor = 1;
-            for (int d = 0; d < steps + 1; d++) {
-                if (d != k)
-                    factor *= (coll - c0[d]) / (c0[k] - c0[d]);
-            }
-            lagrC.push_back(factor);
-        }
-        lagr.push_back(lagrC);
-    }
-    return lagr;
-}
-
 // output values at c_0/2, c_1/2, ..., c_m/2 = 1/2, 1/2 + c_0/2, 1/2 + c_1/2, ..., 1
 std::vector<double> Integrator::interpolateFirstControl(std::vector<double>& uValues) {
     std::vector<double> vals;
-    for (auto coeffs : interpolationFirstLagrangeBasis) {
+    for (auto coeffs : lagrangeBisectedFactorsC) {
         double sum = 0;
         for (int k = 0; k < steps; k++) {
             sum += uValues[k] * coeffs[k];
@@ -263,10 +113,10 @@ std::vector<double> Integrator::interpolateFirstControl(std::vector<double>& uVa
 // at  c_0/2, c_1/2, ..., c_m/2 = 1/2, 1/2 + c_0/2, 1/2 + c_1/2, ..., 1
 std::vector<double> Integrator::evalInterpolationNewNodes(std::vector<double>& values) {
     std::vector<double> vals;
-    for (int j = 1; j < sz(interpolationLagrangeBasis); j++) {
+    for (int j = 1; j < sz(lagrangeBisectionC0); j++) {
         double sum = 0;
         for (int k = 0; k < steps + 1; k++) {
-            sum += values[k] * interpolationLagrangeBasis[j][k];
+            sum += values[k] * lagrangeBisectionC0[j][k];
         }
         vals.push_back(sum);
     }
@@ -302,21 +152,24 @@ std::vector<double> Integrator::evalLinearSplineNewNodes(std::vector<double>& va
 }
 
 Integrator Integrator::radauIIA(IntegratorSteps steps) {
-    /*
-    Schema has to be of the following structure:
-        c_1 | a_11, ..., a_1m
-        c_2 | a_12, ..., a_2m
-         .  |  .    ...,  .
-        c_m | a_m1, ..., a_m,m
-        ----------------------
-            | a_m1, ..., a_m,m =: vec(b)^T
-    */
 
     switch (steps) {
-        case IntegratorSteps::Steps1:
-            return {{1.0}, {1.0}, {{1.0}}, {1.0}, 1};
-
-        default:  // implicit Euler as fallback
-            return {{1.0}, {1.0}, {{1.0}}, {1.0}, 1};
+        
+    default:
+        return {{1.0},
+{0.0,1.0},
+{0.5,1.0},
+{0.0,0.5,1.0},
+{1.0},
+{{-1.0,1.0},
+{-1.0,1.0}},
+{{-2.0,2.},
+{-2.0,2.}},
+{{1.},
+{1.}},
+{{1.0,0.0},
+{0.5,0.5},
+{0.0,1.0}},
+1};
     }
 }

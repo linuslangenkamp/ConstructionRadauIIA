@@ -56,7 +56,7 @@ def genCppCode(s, dps=150, mindps=40):
         outStr += "{"
         for j in range(len(D2[0])):
             outStr += str(D2[i][j]) + ","
-        outStr = outStr[:-2] + "},\n"
+        outStr = outStr[:-1] + "},\n"
     outStr = outStr[:-2] + "},\n"
 
     # LB matrix
@@ -65,7 +65,7 @@ def genCppCode(s, dps=150, mindps=40):
         outStr += "{"
         for j in range(len(LB[0])):
             outStr += str(LB[i][j]) + ","
-        outStr = outStr[:-2] + "},\n"
+        outStr = outStr[:-1] + "},\n"
     outStr = outStr[:-2] + "},\n"
 
     # LB0 matrix
@@ -159,6 +159,8 @@ def generate(s, dps=150):
     LB = []
     LB0 = []
 
+    # Barycentric Formulas from http://richard.baltensp.home.hefr.ch/Publications/3.pdf
+
     # eval d/dx L
     for i in range(s + 1):
         lagr = lagrange(c0, i)
@@ -176,7 +178,7 @@ def generate(s, dps=150):
     for i in range(s + 1):
         for j in range(s + 1):
             if i != j:
-                D2[i][j] = D1[i][j] * (D1[i][i] - D1[j][j]) / (c0[i] - c0[j])
+                D2[i][j] = mpf(2) * D1[i][j] * (D1[i][i] - mpf(1) / (c0[i] - c0[j]))
         D2[i][i] = -sum(D2[i][j] for j in range(s + 1) if j != i)
 
     # lagrange evaluation at cBisection
@@ -201,9 +203,8 @@ def generate(s, dps=150):
         LB0.append(lagrC)
     return c, c0, cBisection, c0Bisection, b, D1, D2, LB, LB0
 
-
-for m in range(1, 71):
-    with open("radauNew.txt", "a") as f:
+with open("radauConstants.txt", "w") as f:
+    for m in range(1, 71):
         startTime = time.time()
         f.write(genCppCode(m))
         print(f"{m} {time.time() - startTime}")
