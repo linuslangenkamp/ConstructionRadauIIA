@@ -261,9 +261,54 @@ def simplify_Q_blocks(Q, D, tol=mp.mpf('1e-40')):
 
     return Q, D
 
+def zero_Q_entry(Q, D, i, block_cols):
+    """
+    Zero Q[i,i] inside a given block and update D accordingly.
+    
+    Q: mpmath matrix, current Q
+    D: mpmath matrix, current D
+    i: row index of the entry to zero (0-based)
+    block_cols: list of column indices forming the block that contains i
+    """
+    # Extract the block
+    Qb = matrix([[Q[r,c] for c in block_cols] for r in range(Q.rows)])
+    Db = matrix([[D[r,c] for c in block_cols] for r in block_cols])
+    
+    # Determine which column inside the block corresponds to i
+    col_in_block = block_cols.index(i)
+    
+    # Pick another column inside the block to do the combination
+    # Choose first column not equal to col_in_block
+    other_cols = [c for c in range(len(block_cols)) if c != col_in_block]
+    col2 = other_cols[0]
+    
+    # Build the 2x2 (or more general) small identity-ish tweak
+    alpha = mpf('1')
+    beta = -Qb[i,col_in_block] / Qb[i,col2]  # combination to zero entry
+    # Construct S_inv: tweak col_in_block, leave others identity
+    S_inv = eye(len(block_cols))
+    S_inv[col_in_block, col_in_block] = alpha
+    S_inv[col_in_block, col2] = beta
+    
+    # Compute S
+    S = S_inv**-1
+    
+    # Update the Q block
+    Qb_new = Qb * S_inv
+    for bi, col in enumerate(block_cols):
+        for row in range(Q.rows):
+            Q[row, col] = Qb_new[row, bi]
+    
+    # Update the D block (conjugation)
+    Db_new = S * Db * S_inv
+    for bi, r in enumerate(block_cols):
+        for bj, c in enumerate(block_cols):
+            D[r,c] = Db_new[bi,bj]
+    
+    return Q, D
 
 def assign_givens_to_2x2_block(Q, r1, r2, c1, c2, tr, tc,
-                            tv=mp.mpf('1'), tol=mp.mpf('1e-40')):
+                            tv=mp.mpf('0'), tol=mp.mpf('1e-40')):
     """
     Apply a right-side Givens rotation on columns (c1,c2) of Q so that Q[tr,tc] == tv,
     where (tr,tc) lies inside the 2x2 block defined by rows r1,r2 and cols c1,c2.
@@ -364,6 +409,75 @@ def assign_givens_to_2x2_block(Q, r1, r2, c1, c2, tr, tc,
 
     return Q, Rot
 
+import itertools
+
+def scale_Q_ones_grid(Q, blocks):
+    """
+    Grid search to scale each column in each block such that one chosen element
+    in that column becomes 1. Chooses combination minimizing cond(Q)*cond(Q^-1).
+    
+    Q: mpmath matrix
+    blocks: list of lists, each sublist contains column indices of a block
+    
+    Returns:
+        Q_best, S_best
+    """
+    n = Q.rows
+    Q_best = None
+    S_best = None
+    cond_best = None
+
+    # For each column in each block, create list of row choices
+    row_choices_per_col = []
+    for blk in blocks:
+        for col in blk:
+            row_choices_per_col.append(list(range(n)))
+
+    # Iterate all combinations of row choices (one row per column)
+    for choice in itertools.product(*row_choices_per_col):
+        S = mp.eye(n)
+        col_idx = 0
+        for blk in blocks:
+            e_col = blk[0]
+            for col in blk:
+                chosen_row = choice[col_idx]
+                if Q[chosen_row, col] != 0:
+                    S[col, col] = mpf(1) / Q[chosen_row, e_col]
+                    S[col, col] = mpf(1) / Q[chosen_row, e_col]
+                else:
+                    S[col, col] = mpf(1)  # avoid div by zero
+                col_idx += 1
+
+        # Apply scaling
+        Q_scaled = Q * S
+
+        # Evaluate condition measure
+        try:
+            cond_measure = mp.mnorm(Q_scaled, p='f') * mp.mnorm(mp.inverse(Q_scaled), p='f')
+        except:
+            cond_measure = mp.inf  # in case of singularity
+        if cond_best is None or cond_measure < cond_best:
+            cond_best = cond_measure
+            Q_best = Q_scaled.copy()
+            S_best = S.copy()
+
+    return Q_best, S_best
+
+def scale_Q_ones(Q):
+    # scale Q to have first column unit norm
+    # Q *= 1 / sum(Q[i, 0]**2 for i in range(len(Q)))**0.5
+
+    S = mp.eye(len(Q))
+    S[0, 0] = 1 / Q[len(Q)-1, 0]
+
+    # scale complex columns to have a one element
+    for i in range(1, len(Q)-1, 2):
+        S[i, i] = 1 / Q[len(Q)-1, i]
+        S[i+1, i+1] = 1 / Q[len(Q)-1, i]
+    Q *= S
+
+    return Q
+
 def generate(s, dps=150):
     mp.dps = dps
 
@@ -406,24 +520,36 @@ def generate(s, dps=150):
 
     D_reduced = [row[1:] for row in D1[1:]]
     A = mp.matrix(D_reduced)
+    
+    # get the block form / decomposition
     Q, D = real_block_form(A)
+    
+    # create 0 entries
     Q, D = simplify_Q_blocks(Q, D)
 
-    # Q *= 0.01 / Q[0, 0]
-    # for 5 x 5 or 7 x 7 we should be able to do local givens rotations in regions where the block is zero I guess
-    #Q, R = assign_givens_to_2x2_block(Q, 0, 1, 0, 1, 1, 1)
+    """
+    _, R = assign_givens_to_2x2_block(Q, 3, 4, 3, 4, 4, 4, tv=mp.mpf('0'))
+    Q = Q * R
+    #D = R.T * D * R
 
-    Q *= 0.9660481826150929361906 / -0.8913134592760334907160853
+    _, R = assign_givens_to_2x2_block(Q, 1, 2, 3, 4, 2, 4, tv=mp.mpf('0'))
+    Q = Q * R
+    #D = R.T * D * R
+    """
 
-    S = mp.eye(len(Q))
-    S[1, 1] = 1 / -0.9856550536105498955635193
-    S[2, 2] = 1 / -0.9856550536105498955635193
-    Q *= S
+    blocks = [
+        [0],      # first 1x1 block
+        [1,2],    # second 2x2 block
+        [3,4]
+    ]
+
+    # scale the resulting decomposition
+    Q = scale_Q_ones(Q)
 
     # check residual
     residual = mp.mnorm(mp.inverse(Q)*A*Q - D)
 
-    mp.dps = 25  # 100-digit precision
+    mp.dps = 8  # 100-digit precision
     print("Residual (100-digit):")
     print(mp.nstr(residual, mp.dps))
 
@@ -475,7 +601,7 @@ def generate(s, dps=150):
 # ------------------------------------------------------------------------
 clist, c0list, blist, Dlist, w0list, wlist = [], [[mpf(0.0)]], [], [[[mpf(0.0)]]], [[mpf(0.0)]], []
 
-for m in range(3, 4):
+for m in range(9, 10):
     startTime = time.time()
     c, c0, b, D, w0, w = generate(m, 200)
     clist.append(c)

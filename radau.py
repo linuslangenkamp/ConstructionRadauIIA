@@ -241,7 +241,7 @@ def generate(s, dps=150):
 # ------------------------------------------------------------------------
 clist, c0list, blist, Dlist, w0list, wlist = [], [[mpf(0.0)]], [], [[[mpf(0.0)]]], [[mpf(0.0)]], []
 
-for m in range(1, 101):
+for m in range(1, 25):
     startTime = time.time()
     c, c0, b, D, w0, w = generate(m, 200)
     clist.append(c)
