@@ -2,6 +2,7 @@ from mpmath import *
 from sympy import symbols, diff, expand, Poly, solve, N, re, im
 import time
 
+
 def genCppCode(clist, c0list, blist, Dlist, w0list, wlist, Qlist, Qinvlist, Blocklist, dps=250, mindps=40):
     mp.dps = mindps
 
@@ -13,7 +14,7 @@ def genCppCode(clist, c0list, blist, Dlist, w0list, wlist, Qlist, Qinvlist, Bloc
             outStr += " = {"
             for i in range(len(c)):
                 outStr += str(c[i]) + ","
-            outStr = outStr[:-1] + "};\n\n"
+            outStr = outStr[:-1] + "};\n"
         f.write(outStr)
 
     # c0
@@ -24,7 +25,7 @@ def genCppCode(clist, c0list, blist, Dlist, w0list, wlist, Qlist, Qinvlist, Bloc
             outStr += " = {"
             for i in range(len(c0)):
                 outStr += str(c0[i]) + ","
-            outStr = outStr[:-1] + "};\n\n"
+            outStr = outStr[:-1] + "};\n"
         f.write(outStr)
 
     # b
@@ -35,7 +36,30 @@ def genCppCode(clist, c0list, blist, Dlist, w0list, wlist, Qlist, Qinvlist, Bloc
             outStr += " = {"
             for i in range(len(b)):
                 outStr += str(b[i]) + ","
-            outStr = outStr[:-1] + "};\n\n"
+            outStr = outStr[:-1] + "};\n"
+        f.write(outStr)
+
+    # Blocks
+    with open("radauConstantsLambda.txt", "w") as f:
+        outStr = ""
+        for Lambd in Blocklist:
+            alphas = [Lambd[0][0]]
+            betas = [0]
+            for i in range(1, len(Lambd), 2):
+                alphas.append(Lambd[i][i])
+                betas.append(Lambd[i+1][i])
+
+            outStr += f"alpha_{len(Lambd)}"
+            outStr += " = {"
+            for i in alphas:
+                outStr += str(i) + ","
+            outStr = outStr[:-1] + "};\n"
+
+            outStr += f"beta_{len(Lambd)}"
+            outStr += " = {"
+            for i in betas:
+                outStr += str(i) + ","
+            outStr = outStr[:-1] + "};\n"
         f.write(outStr)
 
     # D1 matrix
@@ -47,7 +71,7 @@ def genCppCode(clist, c0list, blist, Dlist, w0list, wlist, Qlist, Qinvlist, Bloc
             for i in range(len(D1)):
                 for j in range(len(D1[0])):
                     outStr += str(D1[i][j]) + ","
-            outStr = outStr[:-1] + "};\n\n"
+            outStr = outStr[:-1] + "};\n"
         f.write(outStr)
 
     # T matrix
@@ -60,7 +84,7 @@ def genCppCode(clist, c0list, blist, Dlist, w0list, wlist, Qlist, Qinvlist, Bloc
                 for j in range(len(Tinv[0])):
                     outStr += str(Tinv[i][j]) + ","
                 outStr += "\n"
-            outStr = outStr[:-2] + "};\n\n"
+            outStr = outStr[:-2] + "};\n"
         f.write(outStr)
 
     # T matrix
@@ -73,7 +97,7 @@ def genCppCode(clist, c0list, blist, Dlist, w0list, wlist, Qlist, Qinvlist, Bloc
                 for j in range(len(Tinv[0])):
                     outStr += str(Tinv[i][j]) + ","
                 outStr += "\n"
-            outStr = outStr[:-2] + "};\n\n"
+            outStr = outStr[:-2] + "};\n"
 
         f.write(outStr)
 
@@ -85,7 +109,7 @@ def genCppCode(clist, c0list, blist, Dlist, w0list, wlist, Qlist, Qinvlist, Bloc
             outStr += " = {"
             for i in range(len(w0)):
                 outStr += str(w0[i]) + ","
-            outStr = outStr[:-1] + "};\n\n"
+            outStr = outStr[:-1] + "};\n"
         f.write(outStr)
 
     # barycentric weights (excl. 0)
@@ -96,7 +120,7 @@ def genCppCode(clist, c0list, blist, Dlist, w0list, wlist, Qlist, Qinvlist, Bloc
             outStr += " = {"
             for i in range(len(w)):
                 outStr += str(w[i]) + ","
-            outStr = outStr[:-1] + "};\n\n"
+            outStr = outStr[:-1] + "};\n"
         f.write(outStr)
 
     return outStr
@@ -137,12 +161,7 @@ def integrate(poly, roots, i, dps=150):
     poly = lagrangeToCoeffs(poly, dps=dps)
     S = mpf(0)
     for j in range(len(roots)):
-        S += (
-            N(1, dps)
-            / N(j + 1, dps)
-            * poly[j]
-            * (pow(N(1, dps), j + 1) - pow(N(0, dps), j + 1))
-        )
+        S += N(1, dps) / N(j + 1, dps) * poly[j] * (pow(N(1, dps), j + 1) - pow(N(0, dps), j + 1))
     return S
 
 
@@ -162,19 +181,12 @@ def tridiagonal_eigenvalues(n, dps=150):
 
     # tridiag entries
     a_0 = -mp.mpf(1) / mp.mpf(3)
-    a_j = lambda j: -mp.mpf(1) / (
-        (mp.mpf(2) * j + mp.mpf(1)) * (mp.mpf(2) * j + mp.mpf(3))
-    )
+    a_j = lambda j: -mp.mpf(1) / ((mp.mpf(2) * j + mp.mpf(1)) * (mp.mpf(2) * j + mp.mpf(3)))
 
     b_1 = mp.sqrt(mp.mpf(8) / (mp.mpf(9) * (mp.mpf(3) + alpha)))
     b_j = lambda j: mp.sqrt(
         (mp.mpf(4) * j * j * (j + mp.mpf(1)) * (j + mp.mpf(1)))
-        / (
-            (mp.mpf(2) * j)
-            * (mp.mpf(2) * j + mp.mpf(1))
-            * (mp.mpf(2) * j + mp.mpf(1))
-            * (mp.mpf(2) * j + mp.mpf(2))
-        )
+        / ((mp.mpf(2) * j) * (mp.mpf(2) * j + mp.mpf(1)) * (mp.mpf(2) * j + mp.mpf(1)) * (mp.mpf(2) * j + mp.mpf(2)))
     )
 
     # set matrix
@@ -196,10 +208,11 @@ def tridiagonal_eigenvalues(n, dps=150):
     eigenvalues = mp.eigsy(matrix)[0]
     return eigenvalues
 
+
 def real_block_form(A, tol=1e-12):
     E, ER = mp.eig(A, right=True)
     n = len(E)
-    used = [False]*n
+    used = [False] * n
 
     # keep separate lists
     Q_real, Q_complex = [], []
@@ -220,7 +233,7 @@ def real_block_form(A, tol=1e-12):
         # complex eigenvalue -> find its conjugate
         else:
             lamc = mp.conj(lam)
-            for j in range(i+1, n):
+            for j in range(i + 1, n):
                 if not used[j] and abs(E[j] - lamc) < tol:
                     vr = [mp.re(x) for x in v]
                     vi = [mp.im(x) for x in v]
@@ -242,12 +255,13 @@ def real_block_form(A, tol=1e-12):
         r = len(B)
         for ii in range(r):
             for jj in range(r):
-                D[row+ii, row+jj] = B[ii][jj]
+                D[row + ii, row + jj] = B[ii][jj]
         row += r
 
     return Q, D
 
-def simplify_Q_blocks(Q, D, tol=mp.mpf('1e-40')):
+
+def simplify_Q_blocks(Q, D, tol=mp.mpf("1e-40")):
     """
     Simplify Q (S) inside each 2x2 complex block of D by applying an SO(2)
     rotation on the *columns* for that block:
@@ -260,31 +274,29 @@ def simplify_Q_blocks(Q, D, tol=mp.mpf('1e-40')):
 
     Returns (Q_new, D_new). Q and D are copied/mutated as mp.matrix objects.
     """
-    Q = mp.matrix(Q)   # ensure mutable mp.matrix
+    Q = mp.matrix(Q)  # ensure mutable mp.matrix
     D = mp.matrix(D)
     n = D.rows
     i = 0
     while i < n:
         # detect a 2x2 real-Schur / complex-conjugate block
-        if (i + 1 < n) and (abs(D[i, i+1]) > tol) and (abs(D[i+1, i]) > tol):
+        if (i + 1 < n) and (abs(D[i, i + 1]) > tol) and (abs(D[i + 1, i]) > tol):
             p = i
             q = i + 1
 
-            a21 = Q[p+1, p]
-            a22 = Q[p+1, q] # eliminate
+            a21 = Q[p + 1, p]
+            a22 = Q[p + 1, q]  # eliminate
 
-            r1 = mp.sqrt(abs(a21)**2 + abs(a22)**2)
+            r1 = mp.sqrt(abs(a21) ** 2 + abs(a22) ** 2)
 
             c = a21 / r1
             s = -a22 / r1
-            R = mp.matrix([[c, s],
-                           [-s, c]])
+            R = mp.matrix([[c, s], [-s, c]])
             # apply rotation to these two columns (right-multiply)
-            Q[:, p:q+1] = Q[:, p:q+1] * R
+            Q[:, p : q + 1] = Q[:, p : q + 1] * R
             # update D block (optional / harmless)
-            Db = D[p:q+1, p:q+1]
-            D[p:q+1, p:q+1] = R.T * Db * R
-
+            Db = D[p : q + 1, p : q + 1]
+            D[p : q + 1, p : q + 1] = R.T * Db * R
 
             # else: both small/no-op; skip
             i += 2
@@ -293,54 +305,55 @@ def simplify_Q_blocks(Q, D, tol=mp.mpf('1e-40')):
 
     return Q, D
 
+
 def zero_Q_entry(Q, D, i, block_cols):
     """
     Zero Q[i,i] inside a given block and update D accordingly.
-    
+
     Q: mpmath matrix, current Q
     D: mpmath matrix, current D
     i: row index of the entry to zero (0-based)
     block_cols: list of column indices forming the block that contains i
     """
     # Extract the block
-    Qb = matrix([[Q[r,c] for c in block_cols] for r in range(Q.rows)])
-    Db = matrix([[D[r,c] for c in block_cols] for r in block_cols])
-    
+    Qb = matrix([[Q[r, c] for c in block_cols] for r in range(Q.rows)])
+    Db = matrix([[D[r, c] for c in block_cols] for r in block_cols])
+
     # Determine which column inside the block corresponds to i
     col_in_block = block_cols.index(i)
-    
+
     # Pick another column inside the block to do the combination
     # Choose first column not equal to col_in_block
     other_cols = [c for c in range(len(block_cols)) if c != col_in_block]
     col2 = other_cols[0]
-    
+
     # Build the 2x2 (or more general) small identity-ish tweak
-    alpha = mpf('1')
-    beta = -Qb[i,col_in_block] / Qb[i,col2]  # combination to zero entry
+    alpha = mpf("1")
+    beta = -Qb[i, col_in_block] / Qb[i, col2]  # combination to zero entry
     # Construct S_inv: tweak col_in_block, leave others identity
     S_inv = eye(len(block_cols))
     S_inv[col_in_block, col_in_block] = alpha
     S_inv[col_in_block, col2] = beta
-    
+
     # Compute S
     S = S_inv**-1
-    
+
     # Update the Q block
     Qb_new = Qb * S_inv
     for bi, col in enumerate(block_cols):
         for row in range(Q.rows):
             Q[row, col] = Qb_new[row, bi]
-    
+
     # Update the D block (conjugation)
     Db_new = S * Db * S_inv
     for bi, r in enumerate(block_cols):
         for bj, c in enumerate(block_cols):
-            D[r,c] = Db_new[bi,bj]
-    
+            D[r, c] = Db_new[bi, bj]
+
     return Q, D
 
-def assign_givens_to_2x2_block(Q, r1, r2, c1, c2, tr, tc,
-                            tv=mp.mpf('0'), tol=mp.mpf('1e-40')):
+
+def assign_givens_to_2x2_block(Q, r1, r2, c1, c2, tr, tc, tv=mp.mpf("0"), tol=mp.mpf("1e-40")):
     """
     Apply a right-side Givens rotation on columns (c1,c2) of Q so that Q[tr,tc] == tv,
     where (tr,tc) lies inside the 2x2 block defined by rows r1,r2 and cols c1,c2.
@@ -366,7 +379,7 @@ def assign_givens_to_2x2_block(Q, r1, r2, c1, c2, tr, tc,
     else:
         x, y = c_, d
 
-    norm2 = x*x + y*y
+    norm2 = x * x + y * y
     norm = mp.sqrt(norm2)
     if norm < tol:
         raise ValueError("Target row is (nearly) zero; rotation impossible.")
@@ -376,11 +389,11 @@ def assign_givens_to_2x2_block(Q, r1, r2, c1, c2, tr, tc,
         raise ValueError("Target magnitude too large: |tv| must be <= sqrt(x^2 + y^2).")
 
     # build the desired rotated vector v (same norm as u=[x,y])
-    rem2 = norm2 - tv*tv
+    rem2 = norm2 - tv * tv
     # clamp tiny negative due to roundoff
     if rem2 < 0:
         if mp.fabs(rem2) <= tol * norm2:
-            rem2 = mp.mpf('0')
+            rem2 = mp.mpf("0")
         else:
             raise ValueError("Numerical inconsistency: negative remainder.")
     other = mp.sqrt(rem2)
@@ -391,13 +404,13 @@ def assign_givens_to_2x2_block(Q, r1, r2, c1, c2, tr, tc,
         v1 = tv
         # choose sign for v2 so cs = (u·v)/norm2 >= 0 (nice consistent choice)
         v2_pos = other
-        cs_pos = (x*v1 + y*v2_pos) / norm2
+        cs_pos = (x * v1 + y * v2_pos) / norm2
         v2 = v2_pos if cs_pos >= 0 else -v2_pos
     else:
         # target is second column: want second component = tv => v = [±other, tv]
         v2 = tv
         v1_pos = other
-        cs_pos = (x*v1_pos + y*v2) / norm2
+        cs_pos = (x * v1_pos + y * v2) / norm2
         v1 = v1_pos if cs_pos >= 0 else -v1_pos
 
     # compute cs and sn solving:
@@ -409,14 +422,13 @@ def assign_givens_to_2x2_block(Q, r1, r2, c1, c2, tr, tc,
     sn = (x * v2 - y * v1) / norm2
 
     # normalize (should be unit length up to rounding)
-    r = mp.sqrt(cs*cs + sn*sn)
+    r = mp.sqrt(cs * cs + sn * sn)
     if r < tol:
         raise ValueError("Failed to compute a valid rotation (degenerate cs,sn).")
     cs /= r
     sn /= r
 
-    R = mp.matrix([[cs, sn],
-                   [-sn, cs]])
+    R = mp.matrix([[cs, sn], [-sn, cs]])
 
     # apply rotation to the whole 2x2 block (use saved originals)
     a_new = cs * a - sn * b
@@ -441,16 +453,18 @@ def assign_givens_to_2x2_block(Q, r1, r2, c1, c2, tr, tc,
 
     return Q, Rot
 
+
 import itertools
+
 
 def scale_Q_ones_grid(Q, blocks):
     """
     Grid search to scale each column in each block such that one chosen element
     in that column becomes 1. Chooses combination minimizing cond(Q)*cond(Q^-1).
-    
+
     Q: mpmath matrix
     blocks: list of lists, each sublist contains column indices of a block
-    
+
     Returns:
         Q_best, S_best
     """
@@ -485,7 +499,7 @@ def scale_Q_ones_grid(Q, blocks):
 
         # Evaluate condition measure
         try:
-            cond_measure = mp.mnorm(Q_scaled, p='f') * mp.mnorm(mp.inverse(Q_scaled), p='f')
+            cond_measure = mp.mnorm(Q_scaled, p="f") * mp.mnorm(mp.inverse(Q_scaled), p="f")
         except:
             cond_measure = mp.inf  # in case of singularity
         if cond_best is None or cond_measure < cond_best:
@@ -495,20 +509,22 @@ def scale_Q_ones_grid(Q, blocks):
 
     return Q_best, S_best
 
+
 def scale_Q_ones(Q):
     # scale Q to have first column unit norm
     # Q *= 1 / sum(Q[i, 0]**2 for i in range(len(Q)))**0.5
 
     S = mp.eye(len(Q))
-    S[0, 0] = 1 / Q[len(Q)-1, 0]
+    S[0, 0] = 1 / Q[len(Q) - 1, 0]
 
     # scale complex columns to have a one element
-    for i in range(1, len(Q)-1, 2):
-        S[i, i] = 1 / Q[len(Q)-1, i]
-        S[i+1, i+1] = 1 / Q[len(Q)-1, i]
+    for i in range(1, len(Q) - 1, 2):
+        S[i, i] = 1 / Q[len(Q) - 1, i]
+        S[i + 1, i + 1] = 1 / Q[len(Q) - 1, i]
     Q *= S
 
     return Q
+
 
 def mp_mat_print_double(M, digits=40):
     M_list = [[mp.nstr(x, digits) for x in row] for row in M.tolist()]
@@ -519,8 +535,10 @@ def mp_mat_print_double(M, digits=40):
     S += "]"
     print(S)
 
+
 def mp_mat_to_list(M):
     return [[mp.mpf(M[i, j]) for j in range(M.cols)] for i in range(M.rows)]
+
 
 def generate(s, dps=150):
     mp.dps = dps
@@ -530,7 +548,7 @@ def generate(s, dps=150):
 
     # fLGR nodes
     if s > 1:
-        roots = (sorted(tridiagonal_eigenvalues(s - 1, dps=dps)))
+        roots = sorted(tridiagonal_eigenvalues(s - 1, dps=dps))
     roots.append(mp.mpf(1))
 
     # radau nodes
@@ -564,10 +582,10 @@ def generate(s, dps=150):
 
     D_reduced = [row[1:] for row in D1[1:]]
     A = mp.matrix(D_reduced)
-    
+
     # get the block form / decomposition
     Q, D = real_block_form(A)
-    
+
     # create 0 entries
     Q, D = simplify_Q_blocks(Q, D)
 
@@ -585,11 +603,17 @@ def generate(s, dps=150):
     if s > 0:
         blocks.append([0])
     for i in range(1, s, 2):
-        blocks.append([i, i+1])
+        blocks.append([i, i + 1])
 
     # scale the resulting decomposition
     Q = scale_Q_ones(Q)
     Qinv = mp.inverse(Q)
+
+    for i in range(len(Q)):
+        for j in range(len(Q)):
+            if mp.fabs(Q[i, j]) < 1e-100:
+                Q[i, j] = 0.0
+
     # check residual
     residual = mp.mnorm(A - Q * D * Qinv)
 
@@ -604,14 +628,13 @@ def generate(s, dps=150):
     print("\nTransformation Q (100-digit):")
     for row in Q.tolist():
         print([mp.nstr(x, mp.dps) for x in row])
-    
+
     print("\nTransformation Q inverse (100-digit):")
     for row in Qinv.tolist():
         print([mp.nstr(x, mp.dps) for x in row])
 
-    # TODO: add printout of block matrix as alpha, beta arrays
-
     return c, c0, b, D_reduced, weights0, weights, mp_mat_to_list(Q), mp_mat_to_list(Qinv), mp_mat_to_list(D)
+
 
 # ------------------------------------------------------------------------
 # Access pattern for the flattened Radau constant arrays in C
@@ -645,7 +668,7 @@ def generate(s, dps=150):
 #   and make indexing cleaner and consistent starting from scheme = 1.
 #   Otherwise we would need an additional -1 when indexing.
 # ------------------------------------------------------------------------
-#clist, c0list, blist, Dlist, w0list, wlist = [], [[mpf(0.0)]], [], [[[mpf(0.0)]]], [[mpf(0.0)]], []
+# clist, c0list, blist, Dlist, w0list, wlist = [], [[mpf(0.0)]], [], [[[mpf(0.0)]]], [[mpf(0.0)]], []
 
 clist, c0list, blist, Dlist, w0list, wlist, Qlist, Qinvlist, Block = [], [], [], [], [], [], [], [], []
 
