@@ -2,69 +2,101 @@ from mpmath import *
 from sympy import symbols, diff, expand, Poly, solve, N, re, im
 import time
 
-def genCppCode(clist, c0list, blist, Dlist, w0list, wlist, dps=250, mindps=40):
+def genCppCode(clist, c0list, blist, Dlist, w0list, wlist, Qlist, Qinvlist, Blocklist, dps=250, mindps=40):
     mp.dps = mindps
 
     with open("radauConstantsC.txt", "w") as f:
         # c
-        outStr = "{"
+        outStr = ""
         for c in clist:
+            outStr += f"c_{len(c)}"
+            outStr += " = {"
             for i in range(len(c)):
                 outStr += str(c[i]) + ","
-            outStr += "\n"
-        outStr = outStr[:-2] + "}\n"
+            outStr = outStr[:-1] + "};\n\n"
         f.write(outStr)
 
     # c0
     with open("radauConstantsC0.txt", "w") as f:
-        outStr = "{"
+        outStr = ""
         for c0 in c0list:
+            outStr += f"c0_{len(c0) - 1}"
+            outStr += " = {"
             for i in range(len(c0)):
                 outStr += str(c0[i]) + ","
-            outStr += "\n"
-        outStr = outStr[:-2] + "}\n"
+            outStr = outStr[:-1] + "};\n\n"
         f.write(outStr)
 
     # b
     with open("radauConstantsB.txt", "w") as f:
-        outStr = "{"
+        outStr = ""
         for b in blist:
+            outStr += f"b_{len(b)}"
+            outStr += " = {"
             for i in range(len(b)):
                 outStr += str(b[i]) + ","
-            outStr += "\n"
-        outStr = outStr[:-2] + "}\n"
+            outStr = outStr[:-1] + "};\n\n"
         f.write(outStr)
 
     # D1 matrix
     with open("radauConstantsD.txt", "w") as f:
-        outStr = "{"
+        outStr = ""
         for D1 in Dlist:
+            outStr += f"D_{len(D1)}"
+            outStr += " = {"
             for i in range(len(D1)):
                 for j in range(len(D1[0])):
                     outStr += str(D1[i][j]) + ","
+            outStr = outStr[:-1] + "};\n\n"
+        f.write(outStr)
+
+    # T matrix
+    with open("radauConstantsT.txt", "w") as f:
+        outStr = ""
+        for Tinv in Qlist:
+            outStr += f"T_{len(Tinv)}"
+            outStr += " = {"
+            for i in range(len(Tinv)):
+                for j in range(len(Tinv[0])):
+                    outStr += str(Tinv[i][j]) + ","
                 outStr += "\n"
-            outStr += "\n"
-        outStr = outStr[:-2] + "}\n"
+            outStr = outStr[:-2] + "};\n\n"
+        f.write(outStr)
+
+    # T matrix
+    with open("radauConstantsTinv.txt", "w") as f:
+        outStr = ""
+        for Tinv in Qinvlist:
+            outStr += f"T_{len(Tinv)}"
+            outStr += " = {"
+            for i in range(len(Tinv)):
+                for j in range(len(Tinv[0])):
+                    outStr += str(Tinv[i][j]) + ","
+                outStr += "\n"
+            outStr = outStr[:-2] + "};\n\n"
+
         f.write(outStr)
 
     # barycentric weights (incl. 0)
     with open("radauConstantsW0.txt", "w") as f:
-        outStr = "{"
+        outStr = ""
         for w0 in w0list:
+            outStr += f"w0_{len(w0) - 1}"
+            outStr += " = {"
             for i in range(len(w0)):
                 outStr += str(w0[i]) + ","
-            outStr += "\n"
-        outStr = outStr[:-2] + "}\n"
+            outStr = outStr[:-1] + "};\n\n"
         f.write(outStr)
 
     # barycentric weights (excl. 0)
     with open("radauConstantsW.txt", "w") as f:
-        outStr = "{"
+        outStr = ""
         for w in wlist:
+            outStr += f"w_{len(w)}"
+            outStr += " = {"
             for i in range(len(w)):
                 outStr += str(w[i]) + ","
-            outStr += "\n"
-        outStr = outStr[:-2] + "}\n"
+            outStr = outStr[:-1] + "};\n\n"
         f.write(outStr)
 
     return outStr
@@ -478,6 +510,18 @@ def scale_Q_ones(Q):
 
     return Q
 
+def mp_mat_print_double(M, digits=40):
+    M_list = [[mp.nstr(x, digits) for x in row] for row in M.tolist()]
+
+    S = "[\n"
+    for row in M_list:
+        S += "  [" + ", ".join(row) + "],\n"
+    S += "]"
+    print(S)
+
+def mp_mat_to_list(M):
+    return [[mp.mpf(M[i, j]) for j in range(M.cols)] for i in range(M.rows)]
+
 def generate(s, dps=150):
     mp.dps = dps
 
@@ -537,19 +581,19 @@ def generate(s, dps=150):
     #D = R.T * D * R
     """
 
-    blocks = [
-        [0],      # first 1x1 block
-        [1,2],    # second 2x2 block
-        [3,4]
-    ]
+    blocks = []
+    if s > 0:
+        blocks.append([0])
+    for i in range(1, s, 2):
+        blocks.append([i, i+1])
 
     # scale the resulting decomposition
     Q = scale_Q_ones(Q)
-
+    Qinv = mp.inverse(Q)
     # check residual
-    residual = mp.mnorm(mp.inverse(Q)*A*Q - D)
+    residual = mp.mnorm(A - Q * D * Qinv)
 
-    mp.dps = 8  # 100-digit precision
+    mp.dps = 40  # 100-digit precision
     print("Residual (100-digit):")
     print(mp.nstr(residual, mp.dps))
 
@@ -562,10 +606,10 @@ def generate(s, dps=150):
         print([mp.nstr(x, mp.dps) for x in row])
     
     print("\nTransformation Q inverse (100-digit):")
-    for row in mp.inverse(Q).tolist():
+    for row in Qinv.tolist():
         print([mp.nstr(x, mp.dps) for x in row])
 
-    return c, c0, b, D1, weights0, weights
+    return c, c0, b, D_reduced, weights0, weights, mp_mat_to_list(Q), mp_mat_to_list(Qinv), mp_mat_to_list(D)
 
 # ------------------------------------------------------------------------
 # Access pattern for the flattened Radau constant arrays in C
@@ -599,17 +643,22 @@ def generate(s, dps=150):
 #   and make indexing cleaner and consistent starting from scheme = 1.
 #   Otherwise we would need an additional -1 when indexing.
 # ------------------------------------------------------------------------
-clist, c0list, blist, Dlist, w0list, wlist = [], [[mpf(0.0)]], [], [[[mpf(0.0)]]], [[mpf(0.0)]], []
+#clist, c0list, blist, Dlist, w0list, wlist = [], [[mpf(0.0)]], [], [[[mpf(0.0)]]], [[mpf(0.0)]], []
 
-for m in range(9, 10):
+clist, c0list, blist, Dlist, w0list, wlist, Qlist, Qinvlist, Block = [], [], [], [], [], [], [], [], []
+
+for m in range(1, 20, 2):
     startTime = time.time()
-    c, c0, b, D, w0, w = generate(m, 200)
+    c, c0, b, A, w0, w, Q, Qinv, D = generate(m, 200)
     clist.append(c)
     c0list.append(c0)
     blist.append(b)
-    Dlist.append(D)
+    Dlist.append(A)
     w0list.append(w0)
     wlist.append(w)
+    Qlist.append(Q)
+    Qinvlist.append(Qinv)
+    Block.append(D)
     print(f"{m} {time.time() - startTime}")
 
-genCppCode(clist, c0list, blist, Dlist, w0list, wlist)
+genCppCode(clist, c0list, blist, Dlist, w0list, wlist, Qlist, Qinvlist, Block, dps=250, mindps=40)
