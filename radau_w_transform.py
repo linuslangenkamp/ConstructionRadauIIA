@@ -609,6 +609,8 @@ def generate(s, dps=150):
     for row in Qinv.tolist():
         print([mp.nstr(x, mp.dps) for x in row])
 
+    # TODO: add printout of block matrix as alpha, beta arrays
+
     return c, c0, b, D_reduced, weights0, weights, mp_mat_to_list(Q), mp_mat_to_list(Qinv), mp_mat_to_list(D)
 
 # ------------------------------------------------------------------------
